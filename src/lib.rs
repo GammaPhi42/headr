@@ -65,7 +65,10 @@ pub fn get_args() -> MyResult<Config> {
             .value_name("LINES")
             .help("print the first lines of each file")
             .default_value("10")
-            .conflicts_with("bytes")
+            //.default_value_if("bytes", None, "")
+            .required_unless("bytes")
+            //.default_value_if("bytes", None, None)
+            
         )
         .get_matches();
 
