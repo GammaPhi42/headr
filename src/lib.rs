@@ -64,13 +64,11 @@ pub fn get_args() -> MyResult<Config> {
             .takes_value(true)
             .value_name("LINES")
             .help("print the first lines of each file")
-            .default_value("10")
-            //.default_value_if("bytes", None, "")
-            .required_unless("bytes")
-            //.default_value_if("bytes", None, None)
-            
-        )
-        .get_matches();
+            .required_unless("bytes")            
+        );
+    matches.value_name("LINES").default_value_if(matches.occurrences_of("BYTES") == 0, "10");
+
+    matches.get_matches();
 
     Ok(Config {
         files : matches.values_of_lossy("files").unwrap(),
