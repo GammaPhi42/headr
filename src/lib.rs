@@ -49,31 +49,44 @@ pub fn get_args() -> MyResult<Config> {
             .default_value("-")
         )
         .arg(
-            Arg::with_name("bytes")
-            .short("c")
-            .long("bytes")
-            .takes_value(true)
-            .value_name("BYTES")
-            .help("print the first BYTES of each file")
-            .conflicts_with("lines")
-        )
-        .arg(
             Arg::with_name("lines")
             .short("n")
             .long("lines")
             .takes_value(true)
             .value_name("LINES")
+            .default_value("10")
             .help("print the first lines of each file")
-            .required_unless("bytes")            
-        );
-    matches.value_name("LINES").default_value_if(matches.occurrences_of("BYTES") == 0, "10");
+        
+        )
+        .arg(
+            Arg::with_name("bytes")
+            .short("c")
+            .long("bytes")
+            .takes_value(true)
+            .value_name("BYTES")
+            .conflicts_with("lines")
+            .help("print the first BYTES of each file")
+            
+        ).get_matches();
+        
+        let bytes: Option<usize>;
+        match matches.value_of("bytes") {
+            Some(num_bytes) => bytes = Some(parse_positive_int(num_bytes)?),
+            None => bytes = None
+        }
+        
+        let lines: usize;
+        match bytes {
+            Some(_) => lines = 0,
+            None => lines = parse_positive_int(matches.value_of("lines").unwrap()).unwrap()
+        } 
 
-    matches.get_matches();
+        
 
     Ok(Config {
         files : matches.values_of_lossy("files").unwrap(),
-        lines : parse_positive_int(matches.value_of("lines").unwrap()).unwrap(),
-        bytes : parse_positive_int(matches.value_of("bytes").unwrap_or("")).ok()
+        lines : lines,
+        bytes : bytes
     })
     
 }
