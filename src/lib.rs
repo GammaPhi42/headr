@@ -1,13 +1,14 @@
 // use assert_cmd::assert;
 use clap::{App, Arg};
-
 use std::error::Error;
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
 #[derive(Debug)]
 pub struct Config {
-    files : Vec<String>,
+    files: Vec<String>,
     lines: usize,
     bytes: Option<usize>,
 }
@@ -15,7 +16,14 @@ pub struct Config {
 fn parse_positive_int(val: &str) -> MyResult<usize> {
     match val.parse() {
         Ok(n) if n > 0 => Ok(n),
-        _ => Err(From::from(val))
+        _ => Err(From::from(val)),
+    }
+}
+
+fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
+    match filename {
+    "-" => Ok(Box::new(BufReader::new(io::stdin()))),
+    _ => Ok(Box::new(BufReader::new(File::open(filename)?))),
     }
 }
 
@@ -42,63 +50,71 @@ pub fn get_args() -> MyResult<Config> {
         .version("0.1.0")
         .author("Ken Youens-Clark <kyclark@gmail.com>")
         .about("Rust head")
-        .arg(Arg::with_name("files")
-            .value_name("files")
-            .help("Input files")
-            .multiple(true)
-            .default_value("-")
+        .arg(
+            Arg::with_name("files")
+                .value_name("files")
+                .help("Input files")
+                .multiple(true)
+                .default_value("-"),
         )
         .arg(
             Arg::with_name("lines")
-            .short("n")
-            .long("lines")
-            .value_name("LINES")
-            .default_value("10")
-            .help("print the first lines of each file")
-        
+                .short("n")
+                .long("lines")
+                .value_name("LINES")
+                .default_value("10")
+                .help("print the first lines of each file"),
         )
         .arg(
             Arg::with_name("bytes")
-            .short("c")
-            .long("bytes")
-            .takes_value(true)
-            .value_name("BYTES")
-            .conflicts_with("lines")
-            .help("print the first BYTES of each file")
-            
-        ).get_matches();
-        
-        let mut bytes: Option<usize> = None;
-        let mut lines :usize = 0;
-        if let Some(num_bytes) = matches.value_of("bytes") {
-            lines = 0;
-            match parse_positive_int(num_bytes) {
-                Ok(parse_ok) => bytes = Some(parse_ok) ,
-                Err(parse_err) => {eprint!("illegal byte count -- {}", parse_err); std::process::exit(1); }
+                .short("c")
+                .long("bytes")
+                .takes_value(true)
+                .value_name("BYTES")
+                .conflicts_with("lines")
+                .help("print the first BYTES of each file"),
+        )
+        .get_matches();
+
+    let mut bytes: Option<usize> = None;
+    let mut lines: usize = 0;
+    if let Some(num_bytes) = matches.value_of("bytes") {
+        lines = 0;
+        match parse_positive_int(num_bytes) {
+            Ok(parse_ok) => bytes = Some(parse_ok),
+            Err(parse_err) => {
+                eprint!("illegal byte count -- {}", parse_err);
+                std::process::exit(1);
             }
-        } 
-        else {
-            if let Some(num_lines) = matches.value_of("lines") {
-                match parse_positive_int(num_lines) {
-                    Ok(parse_ok) => lines = parse_ok,
-                    Err(parse_err) => {eprint!("illegal line count -- {}", parse_err); std::process::exit(1);}
+        }
+    } else {
+        bytes = None;
+        if let Some(num_lines) = matches.value_of("lines") {
+            match parse_positive_int(num_lines) {
+                Ok(parse_ok) => lines = parse_ok,
+                Err(parse_err) => {
+                    eprint!("illegal line count -- {}", parse_err);
+                    std::process::exit(1);
                 }
             }
-            else {
-                lines = 0;
-            }
-            bytes = None;
+        } else {
+            lines = 0;
         }
-        
+    }
+
     Ok(Config {
-        files : matches.values_of_lossy("files").unwrap(),
+        files: matches.values_of_lossy("files").unwrap(),
         lines,
-        bytes
+        bytes,
     })
-    
 }
 
-pub fn run(config : Config) -> MyResult<()> {
-    dbg!(config);
+pub fn run(config: Config) -> MyResult<()> {
+    for filename in config.files {
+        match open(&filename) {
+            Err(err) => eprintln!("{}: {}", filename, err),
+            Ok(_) => println!("Opened {}", filename),
+        }
+    }
     Ok(())
 }
