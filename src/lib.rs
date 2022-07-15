@@ -52,7 +52,6 @@ pub fn get_args() -> MyResult<Config> {
             Arg::with_name("lines")
             .short("n")
             .long("lines")
-            .takes_value(true)
             .value_name("LINES")
             .default_value("10")
             .help("print the first lines of each file")
@@ -69,24 +68,32 @@ pub fn get_args() -> MyResult<Config> {
             
         ).get_matches();
         
-        let bytes: Option<usize>;
-        match matches.value_of("bytes") {
-            Some(num_bytes) => bytes = Some(parse_positive_int(num_bytes)?),
-            None => bytes = None
+        let mut bytes: Option<usize> = None;
+        let mut lines :usize = 0;
+        if let Some(num_bytes) = matches.value_of("bytes") {
+            lines = 0;
+            match parse_positive_int(num_bytes) {
+                Ok(parse_ok) => bytes = Some(parse_ok) ,
+                Err(parse_err) => {eprint!("illegal byte count -- {}", parse_err); std::process::exit(1); }
+            }
+        } 
+        else {
+            if let Some(num_lines) = matches.value_of("lines") {
+                match parse_positive_int(num_lines) {
+                    Ok(parse_ok) => lines = parse_ok,
+                    Err(parse_err) => {eprint!("illegal line count -- {}", parse_err); std::process::exit(1);}
+                }
+            }
+            else {
+                lines = 0;
+            }
+            bytes = None;
         }
         
-        let lines: usize;
-        match bytes {
-            Some(_) => lines = 0,
-            None => lines = parse_positive_int(matches.value_of("lines").unwrap()).unwrap()
-        } 
-
-        
-
     Ok(Config {
         files : matches.values_of_lossy("files").unwrap(),
-        lines : lines,
-        bytes : bytes
+        lines,
+        bytes
     })
     
 }
