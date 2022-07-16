@@ -22,8 +22,8 @@ fn parse_positive_int(val: &str) -> MyResult<usize> {
 
 fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
     match filename {
-    "-" => Ok(Box::new(BufReader::new(io::stdin()))),
-    _ => Ok(Box::new(BufReader::new(File::open(filename)?))),
+        "-" => Ok(Box::new(BufReader::new(io::stdin()))),
+        _ => Ok(Box::new(BufReader::new(File::open(filename)?))),
     }
 }
 
@@ -76,8 +76,8 @@ pub fn get_args() -> MyResult<Config> {
         )
         .get_matches();
 
-    let mut bytes: Option<usize> = None;
-    let mut lines: usize = 0;
+    let bytes: Option<usize>;
+    let lines: usize;
     if let Some(num_bytes) = matches.value_of("bytes") {
         lines = 0;
         match parse_positive_int(num_bytes) {
@@ -110,10 +110,37 @@ pub fn get_args() -> MyResult<Config> {
 }
 
 pub fn run(config: Config) -> MyResult<()> {
+    let num_lines = config.lines;
+    let num_bytes = config.bytes;
     for filename in config.files {
         match open(&filename) {
             Err(err) => eprintln!("{}: {}", filename, err),
-            Ok(_) => println!("Opened {}", filename),
+            Ok(mut file_reader) => match num_bytes {
+                Some(num_bytes) => {
+                    let mut buffer: Vec<u8> = Vec::with_capacity(num_bytes);
+                    buffer = file_reader.fill_buf().unwrap().to_vec();
+                    file_reader.consume(num_bytes);
+                    if !buffer.is_empty() {
+                        println!("==> {} <==", filename);
+                    }
+                    for x in buffer {
+                        print!("{}", x);
+                    }
+                }
+                None => {
+                    for _line in 0..num_lines {
+                        let mut line_to_print = String::new();
+                        match file_reader.read_line(&mut line_to_print) {
+                            Ok(0) => break,
+                            Ok(line_to_print) => {
+                                println!("==> {} <==", filename);
+                                println!("{}", line_to_print)
+                            }
+                            Err(_) => std::process::exit(1),
+                        }
+                    }
+                }
+            },
         }
     }
     Ok(())
