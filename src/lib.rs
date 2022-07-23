@@ -2,7 +2,7 @@
 use clap::{App, Arg};
 use std::error::Error;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Read};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
@@ -110,38 +110,71 @@ pub fn get_args() -> MyResult<Config> {
 }
 
 pub fn run(config: Config) -> MyResult<()> {
-    let num_lines = config.lines;
-    let num_bytes = config.bytes;
+    let mut print_line_break = false;
+    let num_files = config.files.len();
     for filename in config.files {
-        match open(&filename) {
-            Err(err) => eprintln!("{}: {}", filename, err),
-            Ok(mut file_reader) => match num_bytes {
-                Some(num_bytes) => {
-                    let mut buffer: Vec<u8> = Vec::with_capacity(num_bytes);
-                    buffer = file_reader.fill_buf().unwrap().to_vec();
-                    file_reader.consume(num_bytes);
-                    if !buffer.is_empty() {
-                        println!("==> {} <==", filename);
+        match config.bytes {
+            None => {
+                let num_lines = config.lines;
+
+                match open(&filename) {
+                    Err(err) => {
+                        eprintln!("{}: {}", filename, err);
+                        continue;
                     }
-                    for x in buffer {
-                        print!("{}", x);
+                    Ok(mut file_reader) => {
+                        if num_files > 1 {
+                            if print_line_break {
+                                println!("\n==> {} <==", filename);
+                            } else {
+                                println!("==> {} <==", filename);
+                            }
+                        }
+                        let mut lines_printed = 0;
+                        while lines_printed < num_lines {
+                            let mut file_line = String::new();
+                            let file_line_bytes = file_reader.read_line(&mut file_line);
+                            match file_line_bytes {
+                                Err(_) => break,
+                                Ok(0) => break,
+                                Ok(_) => print!("{}", file_line),
+                            }
+                            lines_printed += 1;
+                        }
                     }
                 }
-                None => {
-                    for _line in 0..num_lines {
-                        let mut line_to_print = String::new();
-                        match file_reader.read_line(&mut line_to_print) {
-                            Ok(0) => break,
-                            Ok(line_to_print) => {
-                                println!("==> {} <==", filename);
-                                println!("{}", line_to_print)
-                            }
-                            Err(_) => std::process::exit(1),
+            }
+            Some(num_bytes) => match open(&filename) {
+                Err(err) => {
+                    eprintln!("{}: {}", filename, err);
+                    continue;
+                }
+
+                Ok(mut file_buf) => {
+                    if num_files > 1 {
+                        if print_line_break {
+                            println!("\n==> {} <==", filename);
+                        } else {
+                            println!("==> {} <==", filename);
+                        }
+                    }
+
+                    let mut file_bytes = Vec::new();
+                    let bytes_in_file = file_buf.read_to_end(&mut file_bytes);
+                    match bytes_in_file {
+                        Err(_) => break,
+                        Ok(_bytes_in_file) => {
+                            file_bytes.truncate(num_bytes);
+                            print!("{}", String::from_utf8_lossy(file_bytes.as_slice()));
                         }
                     }
                 }
             },
         }
+        if !print_line_break {
+            print_line_break = true;
+        }
     }
+
     Ok(())
 }
